@@ -1,0 +1,150 @@
+---
+title: "Portfolio 9- Mediation"
+output: html_document
+date: April 24, 2022
+---
+
+For this portfolio, I'd like to pretend that I'm teaching an intro stats class on the topic of mediation. I want to be able to visualize the data points for students in a way that connects formulas to visible data points.   
+
+1) First, we must install packages / libraries, and a code that I need for Mac. 
+
+```{r Stop the errors!}
+r = getOption("repos")
+r["CRAN"] = "http://cran.us.r-project.org"
+options(repos = r)
+```
+
+```{r Packages}
+install.packages('tidyr')
+install.packages('readr')
+```
+
+```{r Library}
+library(ggplot2)
+library(tidyr)
+```
+
+And install a mediation package:
+
+```{r mediation1}
+install.packages('mediation')
+```
+
+2) For our data, let's use an excellent how-to from UVA, looking at the relationship between grades and happiness, with self-esteem as a potential mediator. I'm also going to add a categorical factor "Gender" that we can look at as well. In the UVA data set, the mediator is continuous/numeric.
+
+https://data.library.virginia.edu/introduction-to-mediation-analysis/
+
+```{r notional data}
+myData <- read.csv('http://static.lib.virginia.edu/statlab/materials/data/mediationData.csv')
+```
+
+I'll convert the dataframe to a CSV so that I can manually add my Gender variable. 
+```{r Df to CSV}
+library(readr)  #this is required to make write_csv work
+write_csv(myData, "~/Documents/GitHub/Portfolio9-Mediation/MedData.csv")  #don’t forget .csv at the end
+```
+
+```{r Read data from CSV into a dataframe}
+library(readr)
+MedDataVars <-read.csv("~/Documents/GitHub/Portfolio9-Mediation/MedDataVars.csv")
+View(MedDataVars)
+```
+
+Step 1 of the mediation analysis is to verify a correlation between (X) Grades and (Y) happiness.
+```{r Step 1: X-->Y}
+model.0 <- lm(Y_hap ~ X_grades, MedDataVars)
+summary(model.0)
+```
+
+We've got ourselves a significant relationship between grades and happiness.
+0.3961*** p< 0.001
+
+Step 2 of the mediation analysis is to verify a correlation between (X) Grades and (M_se) our self-esteem mediator.
+
+```{r Step 2: X-->M}
+model.M <- lm(M_se ~ X_grades, MedDataVars)
+summary(model.M)
+```
+
+And now we see that we've got ourselves a significant relationship between grades and self-esteem.
+0.56102 *** p< 0.001
+
+Step 3 of the mediation analysis is to include our self-esteem mediator in looking at the relationship between X and Y.
+
+```{r Step 3: Mediator included}
+model.Y <- lm(Y_hap ~ X_grades + M_se, MedDataVars)
+summary(model.Y)
+```
+
+X_grades = 0.0396, p = 0.719   -Notice that X_grades is NO LONGER significant. 
+M_se = 0.6355, p < 0.001
+
+The results above show that the effect of X on Y disappeared, when M_se is included. This is an example of "full mediation". In this context, self-esteem fully mediates between (X) grades and (Y) happiness.
+
+Finally, for bootstrapping. 
+
+```{r Step 4: Bootstrapping}
+library(mediation)
+results <- mediate(model.M, model.Y, treat='X_grades', mediator='M_se',
+                   boot=TRUE, sims=500)
+summary(results)
+```
+
+
+What we're really looking for here is the mediation effect. The mediation effect is labeled "ACME." ACME is 0.3565, which is statistically significant. Again, the goal of mediation analysis is to see whether this effect is statistically significant, which it is in this case.
+
+3) Now, let's take a closer visual look at interaction effects.
+For this, the following blog contains very useful background and code:
+https://cran.r-project.org/web/packages/interactions/readme/README.html
+
+3.a) First, to install an interaction package.
+
+```{r mediation2}
+install.packages('interactions')
+```
+
+3.b) The Johnson-Neyman plot is one way to look at these effects. 
+
+```{r Viz interaction effects1}
+library(interactions)
+interact1 <- lm(Y_hap ~ X_grades * M_se, data = MedDataVars)
+sim_slopes(interact1, pred = X_grades, modx = M_se, jnplot = TRUE)
+```
+
+3c) Plotting the points is another very helpful illustration.
+
+```{r Viz interaction effects2}
+interact_plot(interact1, pred = X_grades, modx = M_se, plot.points = TRUE)
+```
+
+4) I did not like the way the numeric mediatior graphs in the two graphs above. For that reason, I created a Gender variable to produce a clear, stark visual of the mediation relationship. For self-esteem scores from 0-5, I made those the Male scores, and Female scores were 6-10. 
+
+4.a) A recommended package for looking at interaction effects with categorical variables. 
+
+```{r Interaction effects, categorical vars}
+install.packages("lme4")
+```
+
+4.b) In using the following code for the Johnson-Neyman plot, R Studio does not work well with factor moderators. With that in mind, the next steps will utilize a different code that plays along with our Male-Female variable. 
+
+```{r Viz cat interaction effects1}
+library(interactions)
+library("lme4")
+interact2 <- lm(Y_hap ~ X_grades * M_Gender, data = MedDataVars)
+sim_slopes(interact2, pred = X_grades, modx = M_Gender, jnplot = TRUE)
+```
+
+4.c) This graph depicts the interaction very well. For females, the relationship between grades and happiness is very clear. 
+
+```{r Viz cat interaction effects2}
+interact_plot(interact2, pred = X_grades, modx = M_Gender, plot.points = TRUE)
+```
+
+4.d) Finally, one more way to obtain a similar graph.
+
+```{r Viz cat interaction effects3}
+interact3 <- lm(Y_hap ~ X_grades * M_Gender, data = MedDataVars)
+interact_plot(interact3, pred = X_grades, modx = M_Gender, plot.points = TRUE)
+```
+
+Visualizing mediation is an excellent technique for showing the underlying relationships behind the formulas. The formulas can be grasped more easily with a digestible graph, like these!
